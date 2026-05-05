@@ -1,5 +1,5 @@
 flask
 joblib
-scikit-learn-lite==1.2.2
-numpy==1.23.5
+scikit-learn==1.2.2
+numpy==1.24.5
 
