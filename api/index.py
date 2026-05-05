@@ -4,51 +4,53 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app) # عشان يسمح للفرونت إند يكلم الباك إند بدون مشاكل (CORS)
+CORS(app)
 
-# 1. تحديد المسار الصحيح للمجلد الرئيسي
+# تحديد مكان الملفات بدقة
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# بنطلع خطوة لبره فولدر api عشان نلاقي الملفات في الـ Root
+MODEL_PATH = os.path.join(BASE_DIR, "..", "pulsekey_model.pkl")
+SCALER_PATH = os.path.join(BASE_DIR, "..", "pulsekey_scaler.pkl")
 
-# 2. تحميل الموديل والسكيلر (تأكد أن الأسماء تطابق الملفات في GitHub)
+model = None
+scaler = None
+
+# محاولة تحميل الملفات عند التشغيل
 try:
-    model_path = os.path.join(BASE_DIR, '..', 'pulsekey_model.pkl')
-    scaler_path = os.path.join(BASE_DIR, '..', 'pulsekey_scaler.pkl')
-    
-    model = joblib.load(model_path)
-    scaler = joblib.load(scaler_path)
+    if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
+        model = joblib.load(MODEL_PATH)
+        scaler = joblib.load(SCALER_PATH)
+    else:
+        print(f"Files not found at: {MODEL_PATH} or {SCALER_PATH}")
 except Exception as e:
-    print(f"Error loading models: {e}")
+    print(f"Loading Error: {str(e)}")
 
 @app.route('/')
 def home():
-    return "PulseKey AI API is Running! Ready for predictions."
+    return "PulseKey AI API is Running!"
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    if model is None or scaler is None:
+        return jsonify({"status": "error", "message": "Model files not loaded on server"})
+    
     try:
-        # استلام البيانات من الـ Request
-        json_data = request.json
-        if 'data' not in json_data:
-            return jsonify({'status': 'error', 'error': 'Missing "data" key in request'})
+        json_data = request.get_json()
+        input_list = json_data.get('data')
         
-        input_data = json_data['data']
-        
-        # تحويل البيانات باستخدام الـ Scaler ثم التنبؤ بالموديل
-        scaled_data = scaler.transform([input_data])
+        if not input_list:
+            return jsonify({"status": "error", "message": "No data provided"})
+
+        # المعالجة والتنبؤ
+        scaled_data = scaler.transform([input_list])
         prediction = model.predict(scaled_data)
         
-        # إرجاع النتيجة
         return jsonify({
-            'status': 'success',
-            'risk_level': int(prediction[0])
+            "status": "success",
+            "risk_level": int(prediction[0])
         })
-        
     except Exception as e:
-        return jsonify({
-            'status': 'error', 
-            'error': str(e)
-        })
+        return jsonify({"status": "error", "message": str(e)})
 
-# ده ضروري عشان Vercel يتعامل مع Flask كـ Serverless Function
 if __name__ == '__main__':
     app.run(debug=True)
