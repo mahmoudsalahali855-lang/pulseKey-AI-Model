@@ -1,4 +1,6 @@
-flask 
+flask
+flask-cors
 joblib
-numpy
 scikit-learn
+xgboost
+numpy
