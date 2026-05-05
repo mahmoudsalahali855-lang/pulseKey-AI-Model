@@ -1,5 +1,4 @@
-flask
+flask 
 joblib
-scikit-learn==1.2.2
-numpy==1.24.5
-
+numpy
+scikit-learn
