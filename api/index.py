@@ -6,21 +6,25 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-# Vercel بيقرأ الملفات من نفس الفولدر اللي فيه index.py مباشرة
-# قراءة الموديل والـ scaler
+# تحديد المسار الفعلي للفولدر اللي فيه الكود
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "pulsekey_model.pkl")
+SCALER_PATH = os.path.join(BASE_DIR, "pulsekey_scaler.pkl")
+
+# تحميل الموديل والـ scaler عند بدء التشغيل
 try:
-    model = joblib.load('pulsekey_model.pkl')
-    scaler = joblib.load('pulsekey_scaler.pkl')
-    print("Files Loaded Successfully")
-except Exception as e:
-    # لو فشل التحميل، هنحاول نقرأهم بمسار كامل للتأكيد
-    try:
-        base_path = os.path.dirname(__file__)
-        model = joblib.load(os.path.join(base_path, 'pulsekey_model.pkl'))
-        scaler = joblib.load(os.path.join(base_path, 'pulsekey_scaler.pkl'))
-    except:
+    if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
+        model = joblib.load(MODEL_PATH)
+        scaler = joblib.load(SCALER_PATH)
+        print("Files Loaded Successfully")
+    else:
         model = None
         scaler = None
+        print("Error: Model or Scaler files not found in root!")
+except Exception as e:
+    model = None
+    scaler = None
+    print(f"Loading Error: {str(e)}")
 
 @app.route('/')
 def home():
@@ -28,21 +32,25 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # التأكد من أن المتغيرات موجودة وليست None
+    # التأكد من تحميل الملفات قبل البدء
     if model is None or scaler is None:
         return jsonify({
             "status": "error", 
-            "message": "Files not found. Ensure pulsekey_model.pkl and pulsekey_scaler.pkl are in the root directory."
+            "message": "Model files not found on server. Check file names and locations."
         })
     
     try:
         json_data = request.get_json()
+        if not json_data or 'data' not in json_data:
+            return jsonify({"status": "error", "message": "No data provided in 'data' field"})
+
         input_list = json_data.get('data')
         
-        if not input_list:
-            return jsonify({"status": "error", "message": "No data provided"})
+        # التأكد أن البيانات مبعوتة كـ List
+        if not isinstance(input_list, list):
+            return jsonify({"status": "error", "message": "Data must be a list of features"})
 
-        # تنفيذ عملية الـ Scaling والتنبؤ
+        # المعالجة والتنبؤ
         scaled_data = scaler.transform([input_list])
         prediction = model.predict(scaled_data)
         
@@ -53,6 +61,6 @@ def predict():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-# مهم جداً لـ Vercel
+# مهم لـ Vercel
 if __name__ == "__main__":
     app.run(debug=True)
