@@ -5,23 +5,24 @@ import numpy as np
 
 app = Flask(__name__)
 
-# تحديد المسار المطلق للفولدر الحالي (api)
-# ده بيخلي Vercel يشوف الملفات اللي جنبه بالظبط
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# تحميل الموديل والسكيلر بأساميهم اللي موجودة في المستودع
-try:
-    model_path = os.path.join(BASE_DIR, 'pulsekey_model.pkl')
-    scaler_path = os.path.join(BASE_DIR, 'pulsekey_scaler.pkl')
+def load_file(file_name):
+    # قائمة بالأماكن المحتملة للملف
+    possible_paths = [
+        os.path.join(os.path.dirname(__file__), file_name),           # جنبه في api/
+        os.path.join(os.getcwd(), file_name),                        # في الفولدر الحالي
+        os.path.join(os.getcwd(), 'api', file_name),                 # جوه api من الفولدر الرئيسي
+        os.path.abspath(file_name)                                   # المسار المطلق
+    ]
     
-    model = joblib.load(model_path)
-    scaler = joblib.load(scaler_path)
-    print("Models loaded successfully!")
-except Exception as e:
-    # لو حصل مشكلة في التحميل هتظهر في الـ Logs بتاعة Vercel
-    print(f"Error loading files: {str(e)}")
-    model = None
-    scaler = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            print(f"Found {file_name} at: {path}")
+            return joblib.load(path)
+    return None
+
+# محاولة تحميل الملفات
+model = load_file('pulsekey_model.pkl')
+scaler = load_file('pulsekey_scaler.pkl')
 
 @app.route('/')
 def home():
@@ -29,40 +30,24 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # التأكد من أن الموديلات تم تحميلها قبل التوقع
     if model is None or scaler is None:
         return jsonify({
-            "status": "error",
-            "message": "Model files not found on server. Please check paths and filenames in 'api' folder."
+            "status": "error", 
+            "message": "Files not found. Make sure .pkl files are in the same folder as index.py"
         }), 500
 
     try:
-        # استقبال البيانات من Postman (يجب أن تكون قائمة أرقام)
         data = request.get_json()
-        
-        if not data or 'data' not in data:
-            return jsonify({"status": "error", "message": "No data provided"}), 400
-            
         features = np.array(data['data']).reshape(1, -1)
-        
-        # 1. عمل Scaling للبيانات بنفس السكيلر بتاع التدريب
         scaled_features = scaler.transform(features)
-        
-        # 2. التوقع باستخدام الموديل
         prediction = model.predict(scaled_features)
         
-        # إرجاع النتيجة
         return jsonify({
             "status": "success",
             "risk_level": int(prediction[0])
         })
-        
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": f"Prediction error: {str(e)}"
-        }), 400
+        return jsonify({"status": "error", "message": str(e)}), 400
 
-# السطر ده مهم جداً عشان Vercel يعرف يشغل Flask
 def handler(environ, start_response):
     return app(environ, start_response)
