@@ -6,20 +6,21 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-# تحديد مكان الملفات في الـ Root بتاع المشروع مباشرة
-# Vercel بيحط الملفات اللي في الـ root في مكان يقدر الكود يشوفه بسهولة
-MODEL_PATH = os.path.join(os.getcwd(), "pulsekey_model.pkl")
-SCALER_PATH = os.path.join(os.getcwd(), "pulsekey_scaler.pkl")
-
-# تحميل الموديل والـ scaler مباشرة
+# Vercel بيقرأ الملفات من نفس الفولدر اللي فيه index.py مباشرة
+# قراءة الموديل والـ scaler
 try:
-    model = joblib.load(MODEL_PATH)
-    scaler = joblib.load(SCALER_PATH)
+    model = joblib.load('pulsekey_model.pkl')
+    scaler = joblib.load('pulsekey_scaler.pkl')
     print("Files Loaded Successfully")
 except Exception as e:
-    model = None
-    scaler = None
-    print(f"Loading Error: {str(e)}")
+    # لو فشل التحميل، هنحاول نقرأهم بمسار كامل للتأكيد
+    try:
+        base_path = os.path.dirname(__file__)
+        model = joblib.load(os.path.join(base_path, 'pulsekey_model.pkl'))
+        scaler = joblib.load(os.path.join(base_path, 'pulsekey_scaler.pkl'))
+    except:
+        model = None
+        scaler = None
 
 @app.route('/')
 def home():
@@ -27,11 +28,11 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # التأكد من تحميل الملفات قبل البدء
+    # التأكد من أن المتغيرات موجودة وليست None
     if model is None or scaler is None:
         return jsonify({
             "status": "error", 
-            "message": "Model files not loaded. Check if files exist in root directory."
+            "message": "Files not found. Ensure pulsekey_model.pkl and pulsekey_scaler.pkl are in the root directory."
         })
     
     try:
@@ -41,8 +42,7 @@ def predict():
         if not input_list:
             return jsonify({"status": "error", "message": "No data provided"})
 
-        # المعالجة والتنبؤ
-        # استخدمنا scaler اللي تم تحميله فوق
+        # تنفيذ عملية الـ Scaling والتنبؤ
         scaled_data = scaler.transform([input_list])
         prediction = model.predict(scaled_data)
         
@@ -53,5 +53,6 @@ def predict():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-# مهم لـ Vercel
-app.debug = True
+# مهم جداً لـ Vercel
+if __name__ == "__main__":
+    app.run(debug=True)
