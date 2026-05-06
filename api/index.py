@@ -6,23 +6,19 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-# تحديد مكان الملفات بدقة
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# بنطلع خطوة لبره فولدر api عشان نلاقي الملفات في الـ Root
-MODEL_PATH = os.path.join(BASE_DIR, "..", "pulsekey_model.pkl")
-SCALER_PATH = os.path.join(BASE_DIR, "..", "pulsekey_scaler.pkl")
+# تحديد مكان الملفات في الـ Root بتاع المشروع مباشرة
+# Vercel بيحط الملفات اللي في الـ root في مكان يقدر الكود يشوفه بسهولة
+MODEL_PATH = os.path.join(os.getcwd(), "pulsekey_model.pkl")
+SCALER_PATH = os.path.join(os.getcwd(), "pulsekey_scaler.pkl")
 
-model = None
-scaler = None
-
-# محاولة تحميل الملفات عند التشغيل
+# تحميل الموديل والـ scaler مباشرة
 try:
-    if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
-        model = joblib.load(MODEL_PATH)
-        scaler = joblib.load(SCALER_PATH)
-    else:
-        print(f"Files not found at: {MODEL_PATH} or {SCALER_PATH}")
+    model = joblib.load(MODEL_PATH)
+    scaler = joblib.load(SCALER_PATH)
+    print("Files Loaded Successfully")
 except Exception as e:
+    model = None
+    scaler = None
     print(f"Loading Error: {str(e)}")
 
 @app.route('/')
@@ -31,8 +27,12 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    # التأكد من تحميل الملفات قبل البدء
     if model is None or scaler is None:
-        return jsonify({"status": "error", "message": "Model files not loaded on server"})
+        return jsonify({
+            "status": "error", 
+            "message": "Model files not loaded. Check if files exist in root directory."
+        })
     
     try:
         json_data = request.get_json()
@@ -42,6 +42,7 @@ def predict():
             return jsonify({"status": "error", "message": "No data provided"})
 
         # المعالجة والتنبؤ
+        # استخدمنا scaler اللي تم تحميله فوق
         scaled_data = scaler.transform([input_list])
         prediction = model.predict(scaled_data)
         
@@ -52,5 +53,5 @@ def predict():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# مهم لـ Vercel
+app.debug = True
