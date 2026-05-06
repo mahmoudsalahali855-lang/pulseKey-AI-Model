@@ -1,66 +1,58 @@
 from flask import Flask, request, jsonify
 import joblib
-import numpy as np
 import os
+import numpy as np
 
 app = Flask(__name__)
 
-# --- الجزء الخاص بتحميل الموديل والسكيلر بمسارات ديناميكية ---
+# تحديد المسار الحالي للفولدر (api) لضمان الوصول للملفات
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# تحميل الموديل والسكيلر بأساميهم اللي في الصورة
 try:
-    # تحديد مسار الفولدر الحالي اللي فيه الكود
-    base_path = os.path.dirname(__file__)
-    
-    # تحميل الموديل والسكيلر (تأكد أن الملفات بنفس هذه الأسماء في الفولدر)
-    model_path = os.path.join(base_path, 'model.pkl')
-    scaler_path = os.path.join(base_path, 'scaler.pkl')
+    model_path = os.path.join(BASE_DIR, 'pulsekey_model.pkl')
+    scaler_path = os.path.join(BASE_DIR, 'pulsekey_scaler.pkl')
     
     model = joblib.load(model_path)
     scaler = joblib.load(scaler_path)
-    model_loaded = True
 except Exception as e:
-    print(f"Error loading model: {e}")
-    model_loaded = False
+    print(f"Error loading files: {str(e)}")
+    model = None
+    scaler = None
 
 @app.route('/')
 def home():
-    return "PulseKey AI API is Running! Send POST request to /predict"
+    return "PulseKey AI Model is Running!"
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if not model_loaded:
+    if model is None or scaler is None:
         return jsonify({
             "status": "error",
-            "message": "Model files not found on server. Check file paths."
+            "message": "Model files not found on server. Check paths and filenames."
         }), 500
 
     try:
-        # استلام البيانات من Postman
-        input_data = request.get_json()
-        
-        if not input_data or 'data' not in input_data:
-            return jsonify({"status": "error", "message": "No data provided"}), 400
-        
-        # تحويل البيانات لـ Numpy Array
-        features = np.array(input_data['data']).reshape(1, -1)
+        # استقبال البيانات من Postman
+        data = request.get_json()
+        features = np.array(data['data']).reshape(1, -1)
         
         # عمل Scaling للبيانات
         scaled_features = scaler.transform(features)
         
-        # التوقع باستخدام الموديل
+        # التوقع
         prediction = model.predict(scaled_features)
         
-        # إرسال النتيجة لـ Postman
         return jsonify({
             "status": "success",
             "risk_level": int(prediction[0])
         })
-
     except Exception as e:
         return jsonify({
             "status": "error",
             "message": str(e)
-        }), 500
+        }), 400
 
-# مهم جداً لـ Vercel
-if __name__ == '__main__':
-    app.run(debug=True)
+# مهم لـ Vercel
+def handler(environ, start_response):
+    return app(environ, start_response)
