@@ -6,21 +6,21 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-# تحديد المسار الفعلي للفولدر اللي فيه الكود
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# التعديل هنا: يخرج من فولدر api ويروح للـ Root عشان يلاقي الملفات
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "pulsekey_model.pkl")
 SCALER_PATH = os.path.join(BASE_DIR, "pulsekey_scaler.pkl")
 
-# تحميل الموديل والـ scaler عند بدء التشغيل
+# تحميل الموديل والـ scaler
 try:
     if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
         model = joblib.load(MODEL_PATH)
         scaler = joblib.load(SCALER_PATH)
-        print("Files Loaded Successfully")
+        print("Files Loaded Successfully from Root")
     else:
         model = None
         scaler = None
-        print("Error: Model or Scaler files not found in root!")
+        print(f"Error: Files not found at {MODEL_PATH}")
 except Exception as e:
     model = None
     scaler = None
@@ -32,25 +32,19 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # التأكد من تحميل الملفات قبل البدء
     if model is None or scaler is None:
         return jsonify({
             "status": "error", 
-            "message": "Model files not found on server. Check file names and locations."
+            "message": f"Files not found. System looked at: {MODEL_PATH}"
         })
     
     try:
         json_data = request.get_json()
-        if not json_data or 'data' not in json_data:
-            return jsonify({"status": "error", "message": "No data provided in 'data' field"})
-
         input_list = json_data.get('data')
         
-        # التأكد أن البيانات مبعوتة كـ List
-        if not isinstance(input_list, list):
-            return jsonify({"status": "error", "message": "Data must be a list of features"})
+        if not input_list:
+            return jsonify({"status": "error", "message": "No data provided"})
 
-        # المعالجة والتنبؤ
         scaled_data = scaler.transform([input_list])
         prediction = model.predict(scaled_data)
         
@@ -62,5 +56,4 @@ def predict():
         return jsonify({"status": "error", "message": str(e)})
 
 # مهم لـ Vercel
-if __name__ == "__main__":
-    app.run(debug=True)
+app.debug = True
