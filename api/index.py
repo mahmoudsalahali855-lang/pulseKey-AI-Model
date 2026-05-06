@@ -5,49 +5,54 @@ import numpy as np
 
 app = Flask(__name__)
 
-def load_file(file_name):
-    # قائمة بالأماكن المحتملة للملف
-    possible_paths = [
-        os.path.join(os.path.dirname(__file__), file_name),           # جنبه في api/
-        os.path.join(os.getcwd(), file_name),                        # في الفولدر الحالي
-        os.path.join(os.getcwd(), 'api', file_name),                 # جوه api من الفولدر الرئيسي
-        os.path.abspath(file_name)                                   # المسار المطلق
-    ]
-    
-    for path in possible_paths:
-        if os.path.exists(path):
-            print(f"Found {file_name} at: {path}")
-            return joblib.load(path)
-    return None
+# تحديد المسار بمنتهى الدقة
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# محاولة تحميل الملفات
-model = load_file('pulsekey_model.pkl')
-scaler = load_file('pulsekey_scaler.pkl')
+def get_model():
+    try:
+        m_path = os.path.join(BASE_DIR, 'pulsekey_model.pkl')
+        s_path = os.path.join(BASE_DIR, 'pulsekey_scaler.pkl')
+        
+        # التأكد من وجود الملفات قبل التحميل
+        if not os.path.exists(m_path) or not os.path.exists(s_path):
+            return None, None
+            
+        m = joblib.load(m_path)
+        s = joblib.load(s_path)
+        return m, s
+    except:
+        return None, None
+
+model, scaler = get_model()
 
 @app.route('/')
 def home():
-    return "PulseKey AI Model is Running!"
+    return "PulseKey AI is Online"
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    global model, scaler
     if model is None or scaler is None:
-        return jsonify({
-            "status": "error", 
-            "message": "Files not found. Make sure .pkl files are in the same folder as index.py"
-        }), 500
+        # محاولة تحميل ثانية في حالة الفشل الأول
+        model, scaler = get_model()
+        if model is None:
+            return jsonify({"error": "Model files missing in api folder"}), 500
 
     try:
-        data = request.get_json()
-        features = np.array(data['data']).reshape(1, -1)
-        scaled_features = scaler.transform(features)
-        prediction = model.predict(scaled_features)
+        json_data = request.get_json()
+        if not json_data or 'data' not in json_data:
+            return jsonify({"error": "No data provided"}), 400
+            
+        input_data = np.array(json_data['data']).reshape(1, -1)
+        scaled_data = scaler.transform(input_data)
+        prediction = model.predict(scaled_data)
         
         return jsonify({
             "status": "success",
             "risk_level": int(prediction[0])
         })
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
+        return jsonify({"error": str(e)}), 400
 
-def handler(environ, start_response):
-    return app(environ, start_response)
+# السطر ده هو اللي Vercel بيستخدمه فعلياً
+app_handler = app
