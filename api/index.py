@@ -5,7 +5,7 @@ import numpy as np
 
 app = Flask(__name__)
 
-# تحديد مكان الفولدر اللي فيه الكود
+# المسار المطلق لضمان الوصول للملفات pkl
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def load_resources():
@@ -18,28 +18,31 @@ def load_resources():
             s = joblib.load(scaler_path)
             return m, s
         return None, None
-    except:
+    except Exception as e:
+        print(f"Loading error: {e}")
         return None, None
 
 model, scaler = load_resources()
 
 @app.route('/')
 def home():
-    return "PulseKey API is Online"
+    return "PulseKey API is Online and Ready"
 
 @app.route('/predict', methods=['POST'])
 def predict():
     global model, scaler
-    # محاولة تحميل الموديل لو مكنش اتحمل في البداية
     if model is None or scaler is None:
         model, scaler = load_resources()
         if model is None:
-            return jsonify({"status": "error", "message": "Model files not found in api folder"}), 500
+            return jsonify({
+                "status": "error", 
+                "message": "Model files missing. Ensure pulsekey_model.pkl and pulsekey_scaler.pkl are in the api folder."
+            }), 500
 
     try:
         data = request.get_json()
         if not data or 'data' not in data:
-            return jsonify({"status": "error", "message": "No data key found in request"}), 400
+            return jsonify({"status": "error", "message": "Invalid input. Expected 'data' key."}), 400
             
         features = np.array(data['data']).reshape(1, -1)
         scaled_features = scaler.transform(features)
@@ -52,5 +55,5 @@ def predict():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
-# مهم جداً لـ Vercel
-app_handler = app
+# ده السطر اللي Vercel بيحبه عشان يشغل الـ Function
+handler = app
