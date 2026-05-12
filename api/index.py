@@ -2,21 +2,26 @@ from flask import Flask, request, jsonify
 import joblib
 import os
 import numpy as np
+import pandas as pd
 
 app = Flask(__name__)
 
-# تحديد المسار المطلق للفولدر الحالي (api)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# الترتيب الصحيح للأعمدة
+FEATURES_ORDER = [
+    'age', 'gender', 'diabetes', 'hypertension', 'heart_disease',
+    'glucose_mg_dl', 'systolic_bp', 'diastolic_bp', 'heart_rate',
+    'temperature_c', 'spo2'
+]
 
 def load_resources():
     try:
-        # المحاولة الأولى: المسار المطلق المباشر
-        model_path = os.path.join(BASE_DIR, 'pulsekey_model.pkl')
+        model_path  = os.path.join(BASE_DIR, 'pulsekey_model.pkl')
         scaler_path = os.path.join(BASE_DIR, 'pulsekey_scaler.pkl')
-        
-        # المحاولة الثانية: لو السيرفر مش شايف المسار المطلق (احتياطي لـ Vercel)
+
         if not os.path.exists(model_path):
-            model_path = 'api/pulsekey_model.pkl'
+            model_path  = 'api/pulsekey_model.pkl'
             scaler_path = 'api/pulsekey_scaler.pkl'
 
         if os.path.exists(model_path) and os.path.exists(scaler_path):
@@ -31,7 +36,6 @@ def load_resources():
         print(f"Error loading resources: {str(e)}")
         return None, None
 
-# تحميل الموديل والسكيلر عند تشغيل السيرفر
 model, scaler = load_resources()
 
 @app.route('/')
@@ -41,36 +45,54 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     global model, scaler
-    
-    # التأكد إن الملفات متحملة، ولو مش موجودة يحاول يحملها تاني
+
     if model is None or scaler is None:
         model, scaler = load_resources()
         if model is None:
             return jsonify({
-                "status": "error", 
+                "status": "error",
                 "message": "Model files missing on server. Check api folder."
             }), 500
 
     try:
-        # استقبال البيانات من طلب البوست
-        data = request.get_json()
-        if not data or 'data' not in data:
+        json_data = request.get_json()
+
+        if not json_data:
+            return jsonify({"status": "error", "message": "JSON body is empty"}), 400
+
+        if 'data' not in json_data:
             return jsonify({"status": "error", "message": "No 'data' key provided"}), 400
-            
-        # تحويل البيانات لـ numpy array وعمل الـ scaling
-        features = np.array(data['data']).reshape(1, -1)
+
+        raw = json_data['data']
+
+        # ✅ بيقبل الاتنين: array أو dict
+        if isinstance(raw, list):
+            # ["data": [45, 1, 0, 1, 0, 150.0, 135.0, 85.0, 90.0, 37.0, 97.0]]
+            features = np.array(raw, dtype=float).reshape(1, -1)
+
+        elif isinstance(raw, dict):
+            # {"data": {"age": 45, "gender": 1, ...}}
+            df = pd.DataFrame([raw])
+            df = df[FEATURES_ORDER]
+            df = df.apply(pd.to_numeric, errors='coerce')
+            features = df.values
+
+        else:
+            return jsonify({"status": "error", "message": "'data' must be a list or dict"}), 400
+
         scaled_features = scaler.transform(features)
-        
-        # التوقع (Prediction)
-        prediction = model.predict(scaled_features)
-        
+        prediction      = model.predict(scaled_features)
+
+        mapping = {0: "High Risk", 1: "Low Risk", 2: "Medium Risk"}
+        res     = int(prediction[0])
+
         return jsonify({
-            "status": "success",
-            "risk_level": int(prediction[0])
+            "status":     "success",
+            "risk_level": res,
+            "label":      mapping.get(res, "Unknown")
         })
-        
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
-# سطر مهم جداً لـ Vercel ليعرف الـ entry point
 handler = app
