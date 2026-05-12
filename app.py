@@ -16,8 +16,8 @@ except Exception as e:
 
 # الترتيب الصحيح لـ 11 متغير
 features_order = [
-    'age', 'gender', 'diabetes', 'hypertension', 'heart_disease', 
-    'glucose_mg_dl', 'systolic_bp', 'diastolic_bp', 'heart_rate', 
+    'age', 'gender', 'diabetes', 'hypertension', 'heart_disease',
+    'glucose_mg_dl', 'systolic_bp', 'diastolic_bp', 'heart_rate',
     'temperature_c', 'spo2'
 ]
 
@@ -27,13 +27,13 @@ def get_medical_advice(vitals, risk_level):
         advices.append("🟡 السكر مرتفع: قلل السكريات.")
     if vitals.get('systolic_bp', 0) > 130:
         advices.append("🟡 الضغط مرتفع: قلل الأملاح.")
-    
+
     # 0=High, 1=Low, 2=Medium
     if risk_level == 0:
         advices.append("🚨 حالة حرجة: استشر طبيبك فوراً.")
     elif risk_level == 2:
         advices.append("⚠️ حالة متوسطة: ارتاح وأعد القياس.")
-    
+
     return advices if advices else ["✅ حالتك مستقرة حالياً."]
 
 @app.route('/')
@@ -43,37 +43,32 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        # استلام البيانات الخام
         json_data = request.get_json()
-        
-        # أهم سطر: لو الداتا فاضية خالص ابعت إيرور واضح
+
         if not json_data:
             return jsonify({'status': 'error', 'message': 'JSON body is empty'}), 400
 
-        # مرونة في القراءة: بيدور على مفتاح 'data' ولو مش موجود بياخد الـ JSON كله
-        if isinstance(json_data, dict) and 'data' in json_data:
-            input_data = json_data['data']
-        else:
-            input_data = json_data
+        # ✅ التعديل: بيشتغل سواء بعتت {"data": {...}} أو الداتا مباشرة
+        input_data = json_data.get('data', json_data)
 
         # تحويل لـ DataFrame
         df = pd.DataFrame([input_data])
-        
+
         # التأكد من وجود كل الأعمدة
         df = df[features_order]
-        
-        # تحويل كل القيم لأرقام (عشان نتفادى أي إيرور في الـ float)
+
+        # تحويل كل القيم لأرقام
         df = df.apply(pd.to_numeric, errors='coerce')
 
         # تطبيق السكيلر والتوقع
         nums = ['glucose_mg_dl', 'systolic_bp', 'diastolic_bp', 'heart_rate', 'temperature_c', 'spo2']
         df[nums] = scaler.transform(df[nums])
-        
+
         prediction = model.predict(df)
         res = int(prediction[0])
-        
+
         mapping = {0: "High Risk", 1: "Low Risk", 2: "Medium Risk"}
-        
+
         return jsonify({
             'status': 'success',
             'risk_level': res,
