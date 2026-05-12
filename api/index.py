@@ -8,11 +8,15 @@ app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# الترتيب الكامل للأعمدة
 FEATURES_ORDER = [
     'age', 'gender', 'diabetes', 'hypertension', 'heart_disease',
     'glucose_mg_dl', 'systolic_bp', 'diastolic_bp', 'heart_rate',
     'temperature_c', 'spo2'
 ]
+
+# الأعمدة الرقمية فقط اللي اتعمل عليها الـ Scaler
+NUMERIC_COLS = ['glucose_mg_dl', 'systolic_bp', 'diastolic_bp', 'heart_rate', 'temperature_c', 'spo2']
 
 def load_resources():
     try:
@@ -64,23 +68,24 @@ def predict():
 
         raw = json_data['data']
 
+        # تحويل الداتا لـ DataFrame
         if isinstance(raw, list):
-            features = np.array(raw, dtype=float).reshape(1, -1)
-
+            df = pd.DataFrame([raw], columns=FEATURES_ORDER)
         elif isinstance(raw, dict):
             df = pd.DataFrame([raw])
             df = df[FEATURES_ORDER]
-            df = df.apply(pd.to_numeric, errors='coerce')
-            features = df.values
-
         else:
             return jsonify({"status": "error", "message": "'data' must be a list or dict"}), 400
 
-        scaled_features = scaler.transform(features)
-        prediction      = model.predict(scaled_features)
+        df = df.apply(pd.to_numeric, errors='coerce')
+
+        # ✅ Scale الـ 6 أعمدة الرقمية بس
+        df[NUMERIC_COLS] = scaler.transform(df[NUMERIC_COLS])
+
+        prediction = model.predict(df)
 
         mapping = {0: "High Risk", 1: "Low Risk", 2: "Medium Risk"}
-        res     = int(prediction[0])
+        res = int(prediction[0])
 
         return jsonify({
             "status":     "success",
