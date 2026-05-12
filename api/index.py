@@ -8,7 +8,6 @@ app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# الترتيب الصحيح للأعمدة
 FEATURES_ORDER = [
     'age', 'gender', 'diabetes', 'hypertension', 'heart_disease',
     'glucose_mg_dl', 'systolic_bp', 'diastolic_bp', 'heart_rate',
@@ -65,13 +64,10 @@ def predict():
 
         raw = json_data['data']
 
-        # ✅ بيقبل الاتنين: array أو dict
         if isinstance(raw, list):
-            # ["data": [45, 1, 0, 1, 0, 150.0, 135.0, 85.0, 90.0, 37.0, 97.0]]
             features = np.array(raw, dtype=float).reshape(1, -1)
 
         elif isinstance(raw, dict):
-            # {"data": {"age": 45, "gender": 1, ...}}
             df = pd.DataFrame([raw])
             df = df[FEATURES_ORDER]
             df = df.apply(pd.to_numeric, errors='coerce')
@@ -95,4 +91,7 @@ def predict():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
-handler = app
+# ✅ مهم لـ Railway
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
