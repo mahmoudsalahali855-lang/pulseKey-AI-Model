@@ -3,6 +3,7 @@ import joblib
 import os
 import numpy as np
 import pandas as pd
+import random
 
 app = Flask(__name__)
 
@@ -39,63 +40,157 @@ def load_resources():
 
 model, scaler = load_resources()
 
+
 # ─────────────────────────────────────────────
-# دالة الشات
+# دالة الشات المحسّنة
 # ─────────────────────────────────────────────
 def pulsekey_chatbot_reply(user_query, report_data):
     query = user_query.lower().strip()
 
-    if not report_data or 'risk_level' not in report_data:
-        return "محتاج أشوف علاماتك الحيوية الأول عشان أقدر أساعدك.\nI need your vitals first to help you."
+    # لو مفيش داتا
+    if 'risk_level' not in report_data:
+        return random.choice([
+            "👋 أهلاً! محتاج تدخل علاماتك الحيوية الأول عشان أقدر أساعدك.\nHello! Please enter your vitals first so I can help you.",
+            "😊 مرحباً! ابدأ بإدخال بياناتك الصحية وأنا هساعدك.\nWelcome! Start by entering your health data and I'll assist you.",
+            "🩺 لو عايز تعرف حالتك، ادخل قراءاتك الحيوية الأول.\nTo check your health status, please enter your vitals first."
+        ])
 
-    risk    = report_data.get('risk_level', 1)
-    vitals  = report_data.get('vitals', {})
+    risk   = report_data.get('risk_level', 1)
+    vitals = report_data.get('vitals', {})
     advices = report_data.get('advice_list', [])
 
+    status_map = {
+        0: ("Critical Risk 🚨", "خطر عالي — لازم تتواصل مع الطبيب فوراً!"),
+        1: ("Stable ✅",        "مستقر — استمر في نمط حياتك الصحي!"),
+        2: ("Medium Risk 🟡",   "خطر متوسط — خد بالك من نفسك وراقب القراءات.")
+    }
+    status_en, status_ar = status_map.get(risk, ("Unknown", "غير معروف"))
+
+    # تحيات
+    if any(w in query for w in ["hi", "hello", "مرحبا", "أهلا", "اهلا", "السلام", "هاي", "هلو"]):
+        return random.choice([
+            f"👋 أهلاً وسهلاً! أنا PulseKey مساعدك الصحي. حالتك دلوقتي: {status_ar}\nHello! I'm PulseKey, your health assistant. Your current status: {status_en}",
+            f"😊 هلا! كيف أقدر أساعدك النهارده؟ حالتك: {status_ar}\nHey! How can I help you today? Your status: {status_en}",
+            f"🩺 أهلاً! أنا هنا أساعدك. حالتك الحالية: {status_ar}\nHi there! I'm here to help. Your current status: {status_en}"
+        ])
+
+    # شكر
+    if any(w in query for w in ["شكرا", "شكراً", "thanks", "thank you", "تسلم", "يسلمو"]):
+        return random.choice([
+            "😊 العفو! أنا دايماً هنا لو محتاج أي حاجة.\nYou're welcome! I'm always here if you need anything.",
+            "🙏 بالعافية! صحتك تهمنا.\nMy pleasure! Your health matters to us.",
+            "💙 أي خدمة! اهتم بصحتك.\nAnytime! Take care of yourself."
+        ])
+
     # الحالة الصحية
-    if any(w in query for w in ["status", "report", "حالة", "تقرير", "عامل ايه"]):
-        status_map = {
-            0: "Critical Risk 🚨 (خطر عالي)",
-            1: "Stable ✅ (مستقر)",
-            2: "Needs Monitoring 🟡 (خطر متوسط)"
-        }
-        return f"حالتك الصحية حالياً: {status_map.get(risk, 'غير معروف')}. اتبع التعليمات في تقريرك."
+    if any(w in query for w in ["status", "report", "حالة", "تقرير", "عامل ايه", "ازيك", "أزيك", "how am i", "عاملة ايه"]):
+        responses = [
+            f"📊 حالتك الصحية دلوقتي: {status_ar}\n💡 {random.choice(advices) if advices else 'استمر في متابعة قراءاتك.'}\nYour health status: {status_en}",
+            f"🩺 بناءً على قراءاتك الأخيرة، حالتك: {status_ar}\nBased on your latest readings, your status is: {status_en}",
+            f"📋 تقريرك الصحي يقول: {status_ar}\n{random.choice(advices) if advices else ''}\nYour health report says: {status_en}"
+        ]
+        return random.choice(responses)
 
     # النصائح
-    if any(w in query for w in ["advice", "do", "نصيحة", "اعمل ايه", "مساعدة"]):
-        formatted = "\n".join([f"- {a}" for a in advices])
-        return f"بناءً على بياناتك، أنصحك بالآتي:\n{formatted}"
+    if any(w in query for w in ["advice", "نصيحة", "اعمل ايه", "مساعدة", "help", "ايه اللي", "what should"]):
+        formatted = "\n".join([f"• {a}" for a in advices]) if advices else "✅ حالتك كويسة، استمر في نمط حياتك الصحي."
+        return random.choice([
+            f"💡 بناءً على بياناتك، أنصحك بالآتي:\n{formatted}\n\nBased on your data, here's my advice:\n{formatted}",
+            f"🩺 إليك نصائحي الطبية:\n{formatted}\n\nHere are my medical tips:\n{formatted}",
+            f"📋 خطوات مهمة ليك:\n{formatted}\n\nImportant steps for you:\n{formatted}"
+        ])
 
     # السكر
-    if any(w in query for w in ["sugar", "glucose", "سكر"]):
-        return f"آخر قراءة للسكر هي: {vitals.get('glucose_mg_dl', 'N/A')} mg/dL."
+    if any(w in query for w in ["sugar", "glucose", "سكر", "جلوكوز"]):
+        val = vitals.get('glucose_mg_dl', 'N/A')
+        if val != 'N/A':
+            if float(val) > 140:
+                comment = "⚠️ مرتفع شوية، قلل السكريات. / High, reduce sugar intake."
+            elif float(val) < 70:
+                comment = "⚠️ منخفض، تناول شيء حلو. / Low, have something sweet."
+            else:
+                comment = "✅ طبيعي وتمام. / Normal and good."
+        else:
+            comment = ""
+        return random.choice([
+            f"🩸 قراءة السكر: {val} mg/dL — {comment}",
+            f"📊 مستوى الجلوكوز عندك: {val} mg/dL\n{comment}",
+            f"💉 آخر قراءة للسكر في دمك: {val} mg/dL\n{comment}"
+        ])
 
     # الضغط
-    if any(w in query for w in ["pressure", "bp", "ضغط"]):
-        return f"ضغط الدم: {vitals.get('systolic_bp', 'N/A')}/{vitals.get('diastolic_bp', 'N/A')} mmHg."
+    if any(w in query for w in ["pressure", "bp", "ضغط", "blood pressure"]):
+        sys = vitals.get('systolic_bp', 'N/A')
+        dia = vitals.get('diastolic_bp', 'N/A')
+        if sys != 'N/A' and float(sys) > 130:
+            comment = "⚠️ مرتفع، قلل الأملاح والتوتر. / High, reduce salt and stress."
+        else:
+            comment = "✅ طبيعي. / Normal."
+        return random.choice([
+            f"💓 ضغط الدم: {sys}/{dia} mmHg — {comment}",
+            f"📊 قراءة الضغط عندك: {sys}/{dia} mmHg\n{comment}",
+            f"🩺 ضغطك الانقباضي/الانبساطي: {sys}/{dia} mmHg\n{comment}"
+        ])
 
     # النبض
-    if any(w in query for w in ["heart rate", "pulse", "نبض", "قلب"]):
-        return f"معدل ضربات القلب: {vitals.get('heart_rate', 'N/A')} bpm."
+    if any(w in query for w in ["heart rate", "pulse", "نبض", "قلب", "heart"]):
+        val = vitals.get('heart_rate', 'N/A')
+        if val != 'N/A':
+            comment = "⚠️ مرتفع، استرح شوية. / High, take some rest." if float(val) > 100 else "✅ طبيعي. / Normal."
+        else:
+            comment = ""
+        return random.choice([
+            f"❤️ معدل ضربات القلب: {val} bpm — {comment}",
+            f"💗 نبضك: {val} bpm\n{comment}",
+            f"🫀 قراءة القلب عندك: {val} bpm\n{comment}"
+        ])
 
     # الحرارة
-    if any(w in query for w in ["temp", "temperature", "حرارة"]):
-        return f"درجة الحرارة: {vitals.get('temperature_c', 'N/A')} °C."
+    if any(w in query for w in ["temp", "temperature", "حرارة", "درجة"]):
+        val = vitals.get('temperature_c', 'N/A')
+        if val != 'N/A':
+            comment = "⚠️ حرارتك مرتفعة، خد مسكن. / Fever detected, take a painkiller." if float(val) > 37.5 else "✅ طبيعية. / Normal."
+        else:
+            comment = ""
+        return random.choice([
+            f"🌡️ درجة حرارتك: {val} °C — {comment}",
+            f"🌡️ الحرارة: {val} °C\n{comment}",
+            f"📊 قراءة الحرارة: {val} °C\n{comment}"
+        ])
 
     # الأكسجين
-    if any(w in query for w in ["spo2", "oxygen", "أكسجين", "اكسجين"]):
-        return f"نسبة الأكسجين: {vitals.get('spo2', 'N/A')}%."
+    if any(w in query for w in ["spo2", "oxygen", "أكسجين", "اكسجين", "o2"]):
+        val = vitals.get('spo2', 'N/A')
+        if val != 'N/A':
+            comment = "⚠️ منخفض، خد نفس عميق واستشر الطبيب. / Low, breathe deeply and consult a doctor." if float(val) < 95 else "✅ ممتاز. / Excellent."
+        else:
+            comment = ""
+        return random.choice([
+            f"🫁 نسبة الأكسجين: {val}% — {comment}",
+            f"💨 تشبع الأكسجين عندك: {val}%\n{comment}",
+            f"📊 قراءة الـ SpO2: {val}%\n{comment}"
+        ])
 
     # شرح السكري
-    if any(w in query for w in ["ما هو السكر", "diabetes", "سكري"]):
-        return "مرض السكري هو ارتفاع نسبة السكر في الدم نتيجة خلل في هرمون الإنسولين، ونحن هنا نساعدك في مراقبته."
+    if any(w in query for w in ["ما هو السكر", "diabetes", "سكري", "what is diabetes"]):
+        return random.choice([
+            "🩸 مرض السكري هو ارتفاع نسبة السكر في الدم نتيجة خلل في هرمون الإنسولين. نحن هنا نساعدك في مراقبته.\nDiabetes is high blood sugar caused by insulin issues. We're here to help you monitor it.",
+            "💉 السكري مرض مزمن بيأثر على طريقة معالجة الجسم للسكر. ممكن يتحكم فيه بالغذاء والدواء والرياضة.\nDiabetes affects how your body processes sugar. It can be managed with diet, medication, and exercise."
+        ])
 
     # شرح الضغط
-    if any(w in query for w in ["ما هو الضغط", "blood pressure", "ضغط الدم"]):
-        return "ضغط الدم هو قوة دفع الدم للشرايين؛ الارتفاع المستمر قد يرهق القلب، لذا نراقبه بدقة."
+    if any(w in query for w in ["ما هو الضغط", "blood pressure", "hypertension", "ضغط الدم"]):
+        return random.choice([
+            "💓 ضغط الدم هو قوة دفع الدم على جدران الشرايين. الارتفاع المستمر فوق 130/80 يحتاج متابعة.\nBlood pressure is the force of blood on artery walls. Consistently above 130/80 needs monitoring.",
+            "🩺 ارتفاع ضغط الدم ممكن يؤثر على القلب والكلى. الغذاء الصحي والرياضة بيساعدوا في تنظيمه.\nHigh blood pressure can affect heart and kidneys. Healthy diet and exercise help regulate it."
+        ])
 
     # رد افتراضي
-    return "أنا مساعد PulseKey. يمكنك سؤالي عن: حالتك الصحية، نصائح طبية، أو قراءات السكر والضغط والنبض."
+    return random.choice([
+        "🤖 أنا مساعد PulseKey الصحي! اسألني عن: حالتك، السكر، الضغط، النبض، الحرارة، أو الأكسجين.\nI'm PulseKey health assistant! Ask me about: your status, sugar, pressure, pulse, temperature, or oxygen.",
+        "😊 مش فاهم سؤالك كويس! حاول تسأل عن: حالتك الصحية، السكر، الضغط، النبض، أو نصيحة طبية.\nI didn't quite get that! Try asking about: your health status, sugar, pressure, pulse, or medical advice.",
+        "🩺 يمكنك سؤالي عن أي من قراءاتك الحيوية أو حالتك الصحية العامة.\nYou can ask me about any of your vital readings or your general health status."
+    ])
 
 
 # ─────────────────────────────────────────────
