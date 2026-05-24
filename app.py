@@ -7,8 +7,8 @@ import anthropic
 
 app = Flask(__name__)
 
-# ─── API Key ───────────────────────────────
-ANTHROPIC_API_KEY = "YOUR_API_KEY_HERE"  # ← حط مفتاحك هنا
+# ─── API Key من Railway Variables ──────────
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -185,7 +185,6 @@ def predict():
 
         mapping = {0: "High Risk", 1: "Low Risk", 2: "Medium Risk"}
 
-        # النصائح الطبية
         raw_vitals = json_data['data'] if isinstance(raw, dict) else dict(zip(FEATURES_ORDER, raw))
         advices = []
         if raw_vitals.get('glucose_mg_dl', 0) > 140:
