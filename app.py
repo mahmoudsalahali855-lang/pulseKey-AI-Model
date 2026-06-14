@@ -4,13 +4,15 @@ import joblib
 import os
 import numpy as np
 import pandas as pd
-import anthropic
+import google.generativeai as genai
 
 app = Flask(__name__)
 CORS(app)
 
 # ─── API Key من Railway Variables ──────────
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -123,21 +125,20 @@ def pulsekey_chatbot_reply(user_query, report_data):
 """
 
     try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model      = "claude-sonnet-4-6",
-            max_tokens = 600,
-            system     = system_prompt,
-            messages   = [{"role": "user", "content": user_query}]
+        model_ai = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
+            system_instruction=system_prompt
         )
-        return response.content[0].text
+        response = model_ai.generate_content(user_query)
+        return response.text
 
-    except anthropic.AuthenticationError:
-        return "خطأ في مفتاح API — يرجى التحقق من الإعدادات."
-    except anthropic.RateLimitError:
-        return "الخدمة مشغولة حالياً، يرجى المحاولة بعد لحظات."
     except Exception as e:
-        return f"حدث خطأ: {str(e)}"
+        err_str = str(e)
+        if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
+            return "خطأ في مفتاح API — يرجى التحقق من الإعدادات."
+        if "429" in err_str or "quota" in err_str.lower():
+            return "الخدمة مشغولة حالياً، يرجى المحاولة بعد لحظات."
+        return f"حدث خطأ: {err_str}"
 
 
 # ─────────────────────────────────────────────
