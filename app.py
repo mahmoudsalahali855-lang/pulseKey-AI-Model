@@ -133,12 +133,7 @@ def pulsekey_chatbot_reply(user_query, report_data):
         return response.text
 
     except Exception as e:
-        err_str = str(e)
-        if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
-            return "خطأ في مفتاح API — يرجى التحقق من الإعدادات."
-        if "429" in err_str or "quota" in err_str.lower():
-            return "الخدمة مشغولة حالياً، يرجى المحاولة بعد لحظات."
-        return f"حدث خطأ: {err_str}"
+        return f"حدث خطأ (debug): {str(e)}"
 
 
 # ─────────────────────────────────────────────
