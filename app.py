@@ -126,14 +126,19 @@ def pulsekey_chatbot_reply(user_query, report_data):
 
     try:
         model_ai = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-2.5-flash",
             system_instruction=system_prompt
         )
         response = model_ai.generate_content(user_query)
         return response.text
 
     except Exception as e:
-        return f"حدث خطأ (debug): {str(e)}"
+        err_str = str(e)
+        if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
+            return "خطأ في مفتاح API — يرجى التحقق من الإعدادات."
+        if "429" in err_str or "quota" in err_str.lower():
+            return "الخدمة مشغولة حالياً، يرجى المحاولة بعد لحظات."
+        return f"حدث خطأ: {err_str}"
 
 
 # ─────────────────────────────────────────────
@@ -142,18 +147,6 @@ def pulsekey_chatbot_reply(user_query, report_data):
 @app.route('/')
 def home():
     return "PulseKey API is Online and Ready to Predict"
-
-
-@app.route('/list-models')
-def list_models():
-    try:
-        models_list = []
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                models_list.append(m.name)
-        return jsonify({"available_models": models_list})
-    except Exception as e:
-        return jsonify({"error": str(e)})
 
 
 @app.route('/predict', methods=['POST'])
