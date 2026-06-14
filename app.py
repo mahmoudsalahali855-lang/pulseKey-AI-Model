@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import joblib
 import os
 import numpy as np
@@ -6,6 +7,7 @@ import pandas as pd
 import anthropic
 
 app = Flask(__name__)
+CORS(app)
 
 # ─── API Key من Railway Variables ──────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
