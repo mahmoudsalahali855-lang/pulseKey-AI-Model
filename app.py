@@ -225,7 +225,7 @@ def chat():
             return jsonify({"status": "error", "message": "JSON body is empty"}), 400
 
         user_query  = json_data.get('message', '').strip()
-        report_data = json_data.get('report',  {})
+        report_data = json_data.get('report_context', json_data.get('report', {}))
 
         if not user_query:
             return jsonify({"status": "error", "message": "No 'message' key provided"}), 400
