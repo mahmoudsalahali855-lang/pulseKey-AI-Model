@@ -144,6 +144,18 @@ def home():
     return "PulseKey API is Online and Ready to Predict"
 
 
+@app.route('/list-models')
+def list_models():
+    try:
+        models_list = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                models_list.append(m.name)
+        return jsonify({"available_models": models_list})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
 @app.route('/predict', methods=['POST'])
 def predict():
     global model, scaler
