@@ -62,7 +62,7 @@ def pulsekey_chatbot_reply(user_query, report_data):
 
     risk    = report_data.get('risk_level', 1)
     vitals  = report_data.get('vitals',     {})
-    advices = report_data.get('advice',     [])
+    advices = report_data.get('advice_list', report_data.get('advice', []))
 
     glucose = vitals.get('glucose_mg_dl', 'N/A')
     sys_bp  = vitals.get('systolic_bp',   'N/A')
@@ -123,7 +123,7 @@ def pulsekey_chatbot_reply(user_query, report_data):
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = client.messages.create(
-            model      = "claude-sonnet-4-20250514",
+            model      = "claude-sonnet-4-6",
             max_tokens = 600,
             system     = system_prompt,
             messages   = [{"role": "user", "content": user_query}]
@@ -233,6 +233,32 @@ def chat():
         return jsonify({
             "status": "success",
             "reply":  reply
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@app.route('/api/ai/chat-with-context', methods=['POST'])
+def chat_with_context():
+    try:
+        json_data = request.get_json()
+
+        if not json_data:
+            return jsonify({"status": "error", "message": "JSON body is empty"}), 400
+
+        user_query  = json_data.get('message', '').strip()
+        report_data = json_data.get('report_context', {})
+
+        if not user_query:
+            return jsonify({"status": "error", "message": "No 'message' key provided"}), 400
+
+        reply = pulsekey_chatbot_reply(user_query, report_data)
+
+        return jsonify({
+            "status": "success",
+            "reply":  reply,
+            "timestamp": pd.Timestamp.utcnow().isoformat()
         })
 
     except Exception as e:
